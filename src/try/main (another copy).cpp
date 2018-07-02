@@ -874,7 +874,7 @@ int main
 			double time_begin = getTickCount();
 			float *netoutdata = run_net(netin_data);
 			double fee_time = (getTickCount() - time_begin) / getTickFrequency() * 1000;
-			//cout << "forward fee: " << fee_time << "ms" << endl;
+			cout << "forward fee: " << fee_time << "ms" << endl;
 
 			// 7. resize net output back to input size to get heatmap
 			float *heatmap = new float[net_inw * net_inh * NET_OUT_CHANNELS];
@@ -909,39 +909,29 @@ int main
 				string str_inputs = "";
 				inputs.clear();
 				vecs.push_back(keypoints);
-				//for(int k=0; k<vecs.size(); k++) 
-				//	standardization(&vecs.at(k));
+				for(int k=0; k<vecs.size(); k++) 
+					standardization(&vecs.at(k));
 				if(vecs.size() == 17) {
 					for(int i=0; i<vecs.size() - 1; i++) {
 						vector<float> input;
 						for(int j=0; j<54; j++) {
 							
 							if(j % 3 == 2) {
-								//str_inputs = str_inputs + to_string((vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0) + ",";
+								str_inputs = str_inputs + to_string((vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0) + ",";
 								input.push_back((vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0);
 							} 
 							else {
 								if(vecs.at(i).at(j) == 0 || vecs.at(i+1).at(j) == 0) {
-									//str_inputs = str_inputs + to_string(0) + ",";
+									str_inputs = str_inputs + to_string(0) + ",";
 									input.push_back(0);
 								} else { 
-									input.push_back(vecs.at(i).at(j) - vecs.at(i+1).at(j));
-									//str_inputs = str_inputs + to_string((vecs.at(i).at(j) - vecs.at(i+1).at(j)) * 10) + ",";
+									input.push_back((vecs.at(i).at(j) - vecs.at(i+1).at(j)) * 10);
+									str_inputs = str_inputs + to_string((vecs.at(i).at(j) - vecs.at(i+1).at(j)) * 10) + ",";
 								}
 							}
 						}
 						inputs.push_back(input);
 					}	
-					//for(int i=0; i<inputs.size(); i++) {
-					//	standardization(&inputs.at(i));
-					//}
-					for(int i=0; i<inputs.size(); i++) {
-						for(int j=0; j<54; j++) {
-							//cout << inputs.at(i).at(j);
-							str_inputs = str_inputs + to_string(inputs.at(i).at(j)) + ",";
-						}
-					}
-					//cout << str_inputs;
 					vecs.erase(vecs.begin());
 					PyObject* arg = vectorToList_Float(inputs);
 					//여기에서 인자를 위의 inputs를 넣어주고 예측!!!
@@ -1306,186 +1296,6 @@ int main
 
 		Mat im;
 		IplImage *frame = NULL;
-		CvCapture *capture = cvCaptureFromFile(im_path);  
-		if( !capture )    {
-			std::cout << "The video file was not found" << std::endl;
-			return 0;
-		}
-
-		//im = cvQueryFrame(capture);
-		frame = cvQueryFrame(capture);
-		im = cvarrToMat(frame);
-
-		Size size = Size(im.size());
-
-		namedWindow("result", 1); 
-		VideoCapture cap(im_path);  
-		vector<vector<float>> vecs;
-		vector<float> vec;
-		vector<vector<float>> inputs;
-		if (!cap.isOpened())  
-		{  
-			cout << "failed to read video" << endl;
-		} 
-		VideoWriter outputVideo;
-		outputVideo.open("ouput.avi", VideoWriter::fourcc('X', 'V', 'I', 'D'),
-			16, size, true);
-		cap.read(im);
-		imshow("result", im);
-		if (im.empty())
-		{
-			cout << "failed to read image (" << im_path << ")" << endl;
-		}
-
-		// 2. initialize net
-		int net_inw = 0;
-		int net_inh = 0;
-		int net_outw = 0;
-		int net_outh = 0;
-		init_net(cfg_path, weight_path, &net_inw, &net_inh, &net_outw, &net_outh);
-
-		while(!im.empty()) {
-
-			// 3. resize to net input size, put scaled image on the top left
-			float scale = 0.0f;
-			Mat netim = create_netsize_im(im, net_inw, net_inh, &scale);
-
-			// 4. normalized to float type
-			netim.convertTo(netim, CV_32F, 1 / 256.f, -0.5);
-
-			// 5. split channels
-			float *netin_data = new float[net_inw * net_inh * 3]();
-			float *netin_data_ptr = netin_data;
-			vector<Mat> input_channels;
-			for (int i = 0; i < 3; ++i)
-			{
-				Mat channel(net_inh, net_inw, CV_32FC1, netin_data_ptr);
-				input_channels.emplace_back(channel);
-				netin_data_ptr += (net_inw * net_inh);
-			}
-			split(netim, input_channels);
-
-			// 6. feed forward
-			double time_begin = getTickCount();
-			float *netoutdata = run_net(netin_data);
-			double fee_time = (getTickCount() - time_begin) / getTickFrequency() * 1000;
-			//cout << "forward fee: " << fee_time << "ms" << endl;
-
-			// 7. resize net output back to input size to get heatmap
-			float *heatmap = new float[net_inw * net_inh * NET_OUT_CHANNELS];
-			for (int i = 0; i < NET_OUT_CHANNELS; ++i)
-			{
-				Mat netout(net_outh, net_outw, CV_32F, (netoutdata + net_outh*net_outw*i));
-				Mat nmsin(net_inh, net_inw, CV_32F, heatmap + net_inh*net_inw*i);
-				resize(netout, nmsin, Size(net_inw, net_inh), 0, 0, CV_INTER_CUBIC);
-			}
-
-			// 8. get heatmap peaks
-			float *heatmap_peaks = new float[3 * (POSE_MAX_PEOPLE+1) * (NET_OUT_CHANNELS-1)];
-			find_heatmap_peaks(heatmap, heatmap_peaks, net_inw, net_inh, NET_OUT_CHANNELS, 0.05);
-
-			// 9. link parts
-			vector<float> keypoints;
-			vector<int> shape;
-			connect_bodyparts(keypoints, heatmap, heatmap_peaks, net_inw, net_inh, 9, 0.05, 6, 0.4, shape);
-			//printf("KeyPoint Count = %d\n", keypoints.size());
-			// 10. draw result
-			render_pose_keypoints(im, keypoints, shape, 0.05, scale);
-			if(!im.empty()) {
-				imshow("result", im); //show image
-				waitKey(1);
-			}
-			// 사람이 1명 있을 때 
-			if(shape[0] == 1) {
-				string str_inputs = "";
-				inputs.clear();
-				vecs.push_back(keypoints);
-				//for(int k=0; k<vecs.size(); k++) 
-				//	standardization(&vecs.at(k));
-				if(vecs.size() == 17) {
-					for(int i=0; i<vecs.size() - 1; i++) {
-						vector<float> input;
-						for(int j=0; j<54; j++) {
-							
-							if(j % 3 == 2) {
-								//str_inputs = str_inputs + to_string((vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0) + ",";
-								input.push_back((vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0);
-							} 
-							else {
-								if(vecs.at(i).at(j) == 0 || vecs.at(i+1).at(j) == 0) {
-									//str_inputs = str_inputs + to_string(0) + ",";
-									input.push_back(0);
-								} else { 
-									input.push_back(vecs.at(i).at(j) - vecs.at(i+1).at(j));
-									//str_inputs = str_inputs + to_string((vecs.at(i).at(j) - vecs.at(i+1).at(j)) * 10) + ",";
-								}
-							}
-						}
-						inputs.push_back(input);
-					}	
-					//for(int i=0; i<inputs.size(); i++) {
-					//	standardization(&inputs.at(i));
-					//}
-					for(int i=0; i<inputs.size(); i++) {
-						for(int j=0; j<54; j++) {
-							//cout << inputs.at(i).at(j);
-							str_inputs = str_inputs + to_string(inputs.at(i).at(j)) + ",";
-						}
-					}
-
-					//cout << str_inputs;
-					vecs.erase(vecs.begin());
-					PyObject* arg = vectorToList_Float(inputs);
-					//여기에서 인자를 위의 inputs를 넣어주고 예측!!!
-					if (pModule != NULL)  { 
-						pModuleFunc1 = PyObject_GetAttrString(pModule, "action_classification");
-		    				if (pModuleFunc1 && PyCallable_Check(pModuleFunc1)) {
-							//char *c = const_cast<char*>(a.c_str());
-							//PyObject* arg = PyUnicode_FromString(c);
-							//npy_intp dims[2] = {16, 54};
-        	   					pArgs1 = NULL;
-							//PyObject* arg2 = Py_BuildValue("i", 1);
-        	   	 				//pReturnVal1 = PyObject_CallObject(pModuleFunc1, arg);
-							//PyArrayObject* numpyArray = (PyArrayObject*)PyArray_SimpleNewFromData(2, dims, NPY_FLOAT32, (float*)inputs.data());
-							//cout << numpyArray << endl;
-							PyObject *pArgs = PyTuple_New( 1 );
-							//PyObject *tmp = vectorToList_Float(inputs);
-							const char *str1 = str_inputs.c_str();
-							PyObject *tmp = PyUnicode_FromString(str1);
-							PyTuple_SetItem( pArgs, 0, tmp );	
-							pReturnVal1 = PyObject_CallObject(pModuleFunc1, pArgs);
-        	  	  			}
-        	    				else {
-		             				if(PyErr_Occurred())
-        					 		  PyErr_Print();
-        	    					std::cout << "error: no func\n";
-        	    				}
-		    				Py_DECREF(pModuleFunc1);
-		    				Py_DECREF(pReturnVal1);
-						Py_DECREF(arg);
-						
-
-    		 			}
-				}
-			}
-			// 11. show and save result
-			//cout << "people: " << shape[0] << endl;
-			//imshow("demo", im); //show image
-			//imwrite("output/result.jpg", im);//save result as jpg
-			outputVideo << im;
-			delete [] heatmap_peaks;
-			delete [] heatmap;
-			delete [] netin_data;
-			cap.read(im);
-			cap.read(im);
-		}
-	}
-
-	/*
-	else if(strcmp(input_type, "rtsp") == 0) {
-
-		Mat im;
-		IplImage *frame = NULL;
 
 		CvCapture *capture = cvCaptureFromFile(im_path);  
 		if( !capture )    {
@@ -1583,8 +1393,8 @@ int main
 			}
 			frame = cvQueryFrame(capture);
 		}
-	}*/
-/*
+	}
+
 
 	else if(strcmp(input_type, "train") == 0) {
 
@@ -1729,210 +1539,9 @@ int main
 										}
 									}
 								}
-								writeFile << endl;	
-								vecs.erase(vecs.begin());
-							}
-						}
-						//imshow("demo", im); //show image
-						//imwrite("output/result.jpg", im);//save result as jpg
-						delete [] heatmap_peaks;
-						delete [] heatmap;
-						delete [] netin_data;
-						cap.read(im);
-						cap.read(im);
-					}
-				}
-				closedir(d);
-				writeFile.close();
-			}
-		}
-	}
-
-	// Follow [1] to get what's going on
-        if (pModule != NULL)
-        { 
-        //pModuleFunc1 = PyObject_GetAttrString(pModule, "action_classification");
-	pModuleFunc2 = PyObject_GetAttrString(pModule, "python_close");
-	//pModuleFunc3 = PyObject_GetAttrString(pModule, "print3");
-            //if (pModuleFunc1 && PyCallable_Check(pModuleFunc1))
-            //{
-            //pArgs1 = NULL;
-            //pReturnVal1 = PyObject_CallObject(pModuleFunc1, pArgs1);
-            //}
-	    if (pModuleFunc2 && PyCallable_Check(pModuleFunc2))
-            {
-            pArgs2 = NULL;
-            pReturnVal2 = PyObject_CallObject(pModuleFunc2, pArgs2);
-            }
-	    /*if (pModuleFunc3 && PyCallable_Check(pModuleFunc3))
-            {
-            pArgs3 = NULL;
-            pReturnVal3 = PyObject_CallObject(pModuleFunc3, pArgs3);
-            }*/
-            /*else{
-                if(PyErr_Occurred())
-        	    PyErr_Print();
-            std::cout << "error: no func\n";
-            }   
-	    Py_XDECREF(pModuleFunc1);
-	    Py_XDECREF(pModuleFunc2);
-            Py_DECREF(pModule);
-    	    }
-        else
-        {
-        PyErr_Print();
-        std::cout << "\nerror: no module\n";
-        }
-
-
-	
-
-	return 0;
-}*/
-else if(strcmp(input_type, "train") == 0) {
-
-		Mat im;
-		namedWindow("result", 1); 
-
-
-		char csvfilename[100];
-		csvfilename[0] = '\0';
-		strcpy(csvfilename, "csv/");
-		strcat(csvfilename, im_path);
-		mkdir(csvfilename, 0777);
-		cout << "mkdir : " << csvfilename << endl;
-		strcat(csvfilename, "/");
-		strcat(csvfilename, "data.csv");
-		cout << "csvfilename : " << csvfilename << endl;
-		ofstream writeFile(csvfilename);
-		if(writeFile.is_open()) {
-			cout << "write file open errer" << endl;
-		}
-		if(strcmp(train_type, "0") == 0) {
-
-			vector<vector<float>> vecs;
-			vector<float> vec;
-			vector<vector<float>> nomalvecs;
-
-			DIR *d;
-			struct dirent *dir;
-
-			char dir_path[100];
-			dir_path[0] = '\0';
-			strcpy(dir_path, "data/");
-			strcat(dir_path, im_path);
-
-			cout << dir_path << endl;
-
-			d = opendir(dir_path);
-
-			// 2. initialize net
-			int net_inw = 0;
-			int net_inh = 0;
-			int net_outw = 0;
-			int net_outh = 0;
-			init_net(cfg_path, weight_path, &net_inw, &net_inh, &net_outw, &net_outh);
-
-			if(d) {
-				while ((dir = readdir(d)) != NULL) {
-					if(strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
-						continue;
-					char path[100];
-					path[0] = '\0';
-					strcpy(path, "data/");
-					strcat(path, im_path);
-					strcat(path, "/");
-					strcat(path, dir->d_name);
-					cout << "file path : " << path << endl;
-					VideoCapture cap(path); 
-					if (!cap.isOpened())  
-					{  
-						cout << "failed to read video" << endl;
-					} 
-					Size size = Size((int)cap.get(CAP_PROP_FRAME_WIDTH),(int)cap.get(CAP_PROP_FRAME_HEIGHT));
-					cap.read(im);
-					imshow("result", im);
-					if (im.empty())
-					{
-						cout << "failed to read image (" << im_path << ")" << endl;
-					}
-
-					while(!im.empty()) {
-						// 3. resize to net input size, put scaled image on the top left
-						float scale = 0.0f;
-						Mat netim = create_netsize_im(im, net_inw, net_inh, &scale);
-
-						// 4. normalized to float type
-						netim.convertTo(netim, CV_32F, 1 / 256.f, -0.5);
-
-						// 5. split channels
-						float *netin_data = new float[net_inw * net_inh * 3]();
-						float *netin_data_ptr = netin_data;
-						vector<Mat> input_channels;
-						for (int i = 0; i < 3; ++i)
-						{
-							Mat channel(net_inh, net_inw, CV_32FC1, netin_data_ptr);
-							input_channels.emplace_back(channel);
-							netin_data_ptr += (net_inw * net_inh);
-						}
-						split(netim, input_channels);
-
-						// 6. feed forward
-						double time_begin = getTickCount();
-						float *netoutdata = run_net(netin_data);
-						double fee_time = (getTickCount() - time_begin) / getTickFrequency() * 1000;
-						//cout << "forward fee: " << fee_time << "ms" << endl;
-
-						// 7. resize net output back to input size to get heatmap
-						float *heatmap = new float[net_inw * net_inh * NET_OUT_CHANNELS];
-						for (int i = 0; i < NET_OUT_CHANNELS; ++i)
-						{
-							Mat netout(net_outh, net_outw, CV_32F, (netoutdata + net_outh*net_outw*i));
-							Mat nmsin(net_inh, net_inw, CV_32F, heatmap + net_inh*net_inw*i);
-							resize(netout, nmsin, Size(net_inw, net_inh), 0, 0, CV_INTER_CUBIC);
-						}
-
-						// 8. get heatmap peaks
-						float *heatmap_peaks = new float[3 * (POSE_MAX_PEOPLE+1) * (NET_OUT_CHANNELS-1)];
-						find_heatmap_peaks(heatmap, heatmap_peaks, net_inw, net_inh, NET_OUT_CHANNELS, 0.05);
-
-						// 9. link parts
-						vector<float> keypoints;
-						vector<int> shape;
-						connect_bodyparts(keypoints, heatmap, heatmap_peaks, net_inw, net_inh, 9, 0.05, 6, 0.4, shape);
-						//printf("KeyPoint Count = %d\n", keypoints.size());
-						//for(int i=0; i<keypoints.size(); i++) {
-						//	printf("%f ", keypoints[i]);
-						//}
-						//printf("\n");
-						// 10. draw result
-						render_pose_keypoints(im, keypoints, shape, 0.05, scale);
-						if(!im.empty()) {
-							imshow("result", im); //show image
-							waitKey(1);
-						}
-						// 11. show and save result
-						//cout << "people: " << shape[0] << endl;
-						if(shape[0] == 1) {
-							vecs.push_back(keypoints);
-							//for(int k=0; k<vecs.size(); k++) 
-							//	standardization(&vecs.at(k));
-							if(vecs.size() == 17) {
-								for(int i=0; i<vecs.size(); i++)
-									cout << "i = " << i << "  " << vecs.at(i).size() << endl;
-								for(int i=0; i<vecs.size() - 1; i++) {
-									for(int j=0; j<54; j++) {
-										if(j % 3 == 2) {
-											writeFile << (vecs.at(i).at(j) + vecs.at(i+1).at(j)) / 2.0 << "," ;
-										} 
-										else {
-											if(vecs.at(i).at(j) == 0 || vecs.at(i+1).at(j) == 0)
-												writeFile << 0 << "," ;
-											else 
-												writeFile << (vecs.at(i).at(j) - vecs.at(i+1).at(j)) << "," ;
-										}
-									}
-									cout << "vecs : " << vecs.size() << "     vec(" << i << "): " << vecs.at(i).size() << endl;
+								standardization(&nomalization);
+								for(int i=0; i<864; i++) {
+									writeFile << nomalization.at(i) << ",";
 								}
 								writeFile << endl;	
 								vecs.erase(vecs.begin());
@@ -1982,13 +1591,15 @@ else if(strcmp(input_type, "train") == 0) {
 	    Py_XDECREF(pModuleFunc1);
 	    Py_XDECREF(pModuleFunc2);
             Py_DECREF(pModule);
-    	}
+    	    }
         else
         {
         PyErr_Print();
-cout << "no3\n";
         std::cout << "\nerror: no module\n";
         }
+
+
+	
 
 	return 0;
 }
