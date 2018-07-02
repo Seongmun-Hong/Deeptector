@@ -544,7 +544,7 @@ void pythonEmbedding()
     PyObject *pModuleName;
     PyObject *pModuleFunc;
     char pyFileName[100];
-    strcpy(pyFileName, "rnn");
+    strcpy(pyFileName, "nn_dropout");
 
     // See [5]
     const wchar_t c_s[] = L":/home/macoy/projects/pythonTesting/main";
@@ -676,7 +676,7 @@ int main
 	PyObject *pModuleFunc2;
 	PyObject *pModuleFunc3;
 	char pyFileName[100];
-	strcpy(pyFileName, "rnn");
+	strcpy(pyFileName, "nn_dropout");
 
 	Py_Initialize();
 	import_array()
