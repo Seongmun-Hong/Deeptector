@@ -1,2 +1,1 @@
-# Deeptector
-Behavior detection project using RNN
+https://github.com/Deeptector/Deeptector
